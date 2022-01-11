@@ -1,12 +1,27 @@
+from refresh import Refresh_Drawn
 import pygame
 from queue import PriorityQueue
 
+#The dimensions of the game 
+#
+# Width is the size of the screen
+#
+# Rows are the amount of rows seen in the game 
 WIDTH = 800
-HEIGHT = 800
 ROWS = 100
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+
+# Whether or not the path is allowed to go diagonally
+# True = yes - diagonal lines are ALLOWED
+# False = no - diagonal lines are NOT allowed
+DIAGONAL = False
+
+#Creates the pygame
+WIN = pygame.display.set_mode((WIDTH, WIDTH))
 pygame.display.set_caption("A* pathfinding")
 
+
+# The color options used in the program
+# Change the right hand side values to change the colors
 SEARCHED = (227, 227, 227)
 START = (77, 212, 136)
 END = (212, 77, 77)
@@ -17,7 +32,13 @@ WALL = (0,0,0)
 BEST_PATH = (153, 89, 236)
 TO_SEARCH = (202, 202, 202)
 
+#Initaites the refresh rate object to re-draw the screen at a given rate
+REFRESH = Refresh_Drawn(15)
+
+#The node class
 class Node:
+
+    #Initaites the node object
     def __init__(self, row, col, width, total_rows):
         self.row = row
         self.col = col
@@ -26,7 +47,6 @@ class Node:
         self.color = EMPTY
         self.neighbors = []
         self.width = width
-        self.height = width
         self.total_rows = total_rows
 
     # Returns the position of the node
@@ -68,7 +88,7 @@ class Node:
 
     #Draws the node
     def draw(self, win):
-        pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.height))
+        pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.width))
 
     #Updates the nodes nearby
     def update_neighbors(self, grid):
@@ -90,6 +110,25 @@ class Node:
         if self.col > 0 and not grid[self.row][self.col - 1].get_wall(): 
             self.neighbors.append(grid[self.row][self.col - 1])
 
+        #Checks if going diagonal is allowed
+        if DIAGONAL:
+            #Node Top Left (Dyaginal)
+            if (self.row > 0 and self.col > 0) and not grid[self.row - 1][self.col - 1].get_wall(): 
+                self.neighbors.append(grid[self.row - 1][self.col - 1])
+
+            #Node Top Right 
+            if (self.row > 0 and self.col < self.total_rows - 1) and not grid[self.row - 1][self.col + 1].get_wall(): 
+                self.neighbors.append(grid[self.row - 1][self.col + 1])
+
+            #Node Bottom Left
+            if (self.col > 0 and self.row < self.total_rows - 1) and not grid[self.row + 1][self.col - 1].get_wall(): 
+                self.neighbors.append(grid[self.row + 1][self.col - 1])
+
+            #Node Bottom Right
+            if (self.col < self.total_rows - 1 and self.row < self.total_rows - 1) and not grid[self.row + 1][self.col + 1].get_wall(): 
+                self.neighbors.append(grid[self.row + 1][self.col + 1])
+
+
     def __lt__(self, other):
         return False
 
@@ -101,14 +140,23 @@ def calculate_h_value(point_1, point_2):
 
 #Creates the best path 
 def generate_best_path(parents, current, draw):
+    # refresh = Refresh_Drawn(ROWS / 10)
+    
     count = 0
     divisor = ROWS / 10
     while current in parents:
         current = parents[current]
         current.set_as_path()
-        if count % divisor == 0:
-            draw()
-        count += 1
+        REFRESH.refresh()
+        
+        # if count % divisor == 0:
+        #     draw()
+        # count += 1
+
+#Resets the board
+def reset_simulation():
+    pass
+
 
 #the start algorithm
 def algorithm(draw, grid, start, end):
@@ -125,9 +173,11 @@ def algorithm(draw, grid, start, end):
 
     while not open_set.empty():
         #to stop
+        
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    pygame.quit()
         
         current = open_set.get()[2]
         open_set_hash.remove(current)
@@ -152,7 +202,8 @@ def algorithm(draw, grid, start, end):
                     open_set.put((f_score[neighbor], count, neighbor))
                     open_set_hash.add(neighbor)
                     neighbor.set_as_to_search()
-        # draw()
+                    
+        REFRESH.refresh()
         
         if current != start:
             current.set_as_searched()
@@ -169,6 +220,7 @@ def generate_grid(rows, width):
             grid[i].append(node)
 
     return grid
+
 
 def draw_grid(win, rows, width):
     gap = width // rows
@@ -218,6 +270,10 @@ def main(win, width):
                 position = pygame.mouse.get_pos()
                 row, col = get_clicked_position(position, ROWS, width)
                 node = grid[row][col]
+                print(node == start)
+                print(node == end)
+                print(end)
+                print("--------")
                 if not start and node != end:
                     start = node
                     node.set_as_start()
@@ -226,7 +282,7 @@ def main(win, width):
                     end = node
                     end.set_as_end()
                 
-                elif node != start and node != start and end != None:
+                elif not node == start and not node == end:
                     node.set_as_wall()
             #Right mouse button
             elif pygame.mouse.get_pressed()[2]:
@@ -244,8 +300,11 @@ def main(win, width):
                     for row in grid:
                         for node in row:
                             node.update_neighbors(grid)
+                    
+                    REFRESH.set_draw_function(lambda: draw(win, grid, ROWS, width))
                     algorithm(lambda: draw(win, grid, ROWS, width), grid, start, end)
     
     pygame.quit()
+
 
 main(WIN, WIDTH)
